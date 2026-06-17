@@ -385,6 +385,7 @@ function initGoogle(){
   google.accounts.id.initialize({
     client_id: window.GOOGLE_CLIENT_ID || '',
     callback: handleGoogleCredential,
+    ux_mode: 'popup',
     auto_select: false,
     cancel_on_tap_outside: true
   });
@@ -392,14 +393,32 @@ function initGoogle(){
 
 function signInWithGoogle(){
   if (!window.google) { showAuthErr('Google Sign-In failed to load. Please refresh.'); return; }
-  if (!window.GOOGLE_CLIENT_ID) { showAuthErr('Google Client ID not configured. Add GOOGLE_CLIENT_ID to your env.'); return; }
-  google.accounts.id.prompt((notification) => {
-    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-      // Fallback to popup flow
-      google.accounts.id.renderButton(
-        document.createElement('div'),
-        { theme: 'outline', size: 'large' }
+  if (!window.GOOGLE_CLIENT_ID) { showAuthErr('Google Client ID not configured.'); return; }
+
+  google.accounts.id.initialize({
+    client_id: window.GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    ux_mode: 'popup',
+    auto_select: false,
+    cancel_on_tap_outside: true
+  });
+
+  google.accounts.id.prompt((n) => {
+    if (n.isNotDisplayed() || n.isSkippedMoment()) {
+      // One Tap blocked — open Google account chooser directly
+      const w = window.open(
+        'https://accounts.google.com/o/oauth2/v2/auth?' +
+        new URLSearchParams({
+          client_id: window.GOOGLE_CLIENT_ID,
+          redirect_uri: window.location.origin,
+          response_type: 'id_token',
+          scope: 'openid email profile',
+          nonce: Math.random().toString(36).slice(2),
+          prompt: 'select_account'
+        }),
+        '_blank', 'width=500,height=600'
       );
+      if (!w) showAuthErr('Popup blocked — please allow popups for this site and try again.');
     }
   });
 }

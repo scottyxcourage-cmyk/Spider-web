@@ -6,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const { db } = require('../db');
 const { sendOTP, sendVerification } = require('../utils/email');
 const { OAuth2Client } = require('google-auth-library');
+const { protect } = require('../middleware/auth');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -74,8 +75,13 @@ router.post('/google', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Google auth error:', err);
-    res.status(401).json({ message: 'Google sign-in failed. Invalid or expired token.' });
+    console.error('Google auth error:', err.message || err);
+    const isTokenError = err.message && (err.message.includes('Token used too late') || err.message.includes('Invalid token') || err.message.includes('Wrong number of segments'));
+    res.status(401).json({
+      message: isTokenError
+        ? 'Google sign-in failed: token is invalid or expired. Please try again.'
+        : 'Google sign-in failed. Make sure GOOGLE_CLIENT_ID is set and this domain is listed in your Google OAuth authorized origins.'
+    });
   }
 });
 
@@ -120,11 +126,23 @@ router.post('/register', async (req, res) => {
       args: [id, username, email.toLowerCase(), hashedPassword, otp, otpExpires]
     });
 
-    await sendVerification(email, username, otp);
-    res.status(201).json({ message: 'Registered! Check your email for the verification code.', userId: id });
+    let emailSent = true;
+    try {
+      await sendVerification(email, username, otp);
+    } catch (emailErr) {
+      console.error('Email send failed:', emailErr.message);
+      emailSent = false;
+    }
+
+    res.status(201).json({
+      message: emailSent
+        ? 'Registered! Check your email for the verification code.'
+        : 'Registered! However, verification email could not be sent. Please try resending it from the login page.',
+      userId: id
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Register error:', err.message);
+    res.status(500).json({ message: err.message || 'Server error' });
   }
 });
 
@@ -207,10 +225,21 @@ router.post('/send-otp', async (req, res) => {
       args: [otp, otpExpires, user.id]
     });
 
-    await sendOTP(email, user.username, otp);
-    res.json({ message: 'OTP sent!', userId: user.id });
+    let emailSent = true;
+    try {
+      await sendOTP(email, user.username, otp);
+    } catch (emailErr) {
+      console.error('OTP email failed:', emailErr.message);
+      emailSent = false;
+    }
+
+    res.json({
+      message: emailSent ? 'OTP sent!' : 'OTP generated but email failed to send. Check server SMTP config.',
+      userId: user.id
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Server error' });
+    console.error('Send-otp error:', err.message);
+    res.status(500).json({ message: err.message || 'Server error' });
   }
 });
 
@@ -239,7 +268,6 @@ router.post('/reset-password', async (req, res) => {
 });
 
 // GET /api/auth/me — verify token & return current user
-const { protect } = require('../middleware/auth');
 router.get('/me', protect, (req, res) => {
   res.json(req.user);
 });

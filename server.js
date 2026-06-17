@@ -17,6 +17,9 @@ const adminRoutes    = require('./routes/admin');
 const app = express();
 const PORT = process.env.PORT || 3004;
 
+// Trust Render's proxy so rate-limit can read the real client IP
+app.set('trust proxy', 1);
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -52,7 +55,6 @@ app.use('/api/sports',   sportsRoutes);
 app.use('/api/download', downloadRoutes);
 app.use('/api/admin',    adminRoutes);
 
-// Public news endpoint (anyone logged-in can read)
 const { db } = require('./db');
 const { protect } = require('./middleware/auth');
 app.get('/api/news', protect, async (req, res) => {

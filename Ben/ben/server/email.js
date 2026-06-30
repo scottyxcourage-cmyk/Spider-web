@@ -1,22 +1,17 @@
 'use strict';
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: process.env.SMTP_SECURE === 'true', // true for 465, false for 587/25
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
-});
-
-const FROM = process.env.EMAIL_FROM || process.env.SMTP_USER;
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM = process.env.EMAIL_FROM || 'Spider Hub <onboarding@resend.dev>';
 const PUBLIC_URL = (process.env.PUBLIC_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 async function sendMail({ to, subject, html, text }) {
   try {
-    await transporter.sendMail({ from: FROM, to, subject, html, text });
+    const { error } = await resend.emails.send({ from: FROM, to, subject, html, text });
+    if (error) {
+      console.error('[email] send failed:', error.message || error);
+      return false;
+    }
     return true;
   } catch (err) {
     console.error('[email] send failed:', err.message);

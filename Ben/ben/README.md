@@ -11,7 +11,7 @@ spiderhub/
 ├── server/
 │   ├── server.js        # Express app: serves the frontend + API
 │   ├── db.js             # Built-in node:sqlite setup (no native build step - Node 22.5+)
-│   ├── email.js          # Nodemailer/SMTP verification + reset emails
+│   ├── email.js          # Resend API verification + reset emails
 │   └── routes/auth.js    # signup / login / verify / forgot / reset / me / logout
 ├── data/                  # sqlite db lives here at runtime (gitignored)
 ├── index.html             # Entry point / SPA
@@ -33,13 +33,11 @@ spiderhub/
    cp .env.example .env
    ```
    - `JWT_SECRET` — any long random string
-   - `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` — your free SMTP provider creds
-     - **Gmail**: host `smtp.gmail.com`, port `587`, and you MUST use an
-       [App Password](https://myaccount.google.com/apppasswords) (not your normal password —
-       Gmail blocks plain logins from apps). Gmail's free tier caps around ~500 emails/day.
-     - **Brevo** (formerly Sendinblue): free tier gives 300 emails/day, no card required.
-       Sign up, grab SMTP creds from Settings → SMTP & API.
-   - `EMAIL_FROM` — the "From" address shown on the email (often must match SMTP_USER)
+   - `RESEND_API_KEY` — sign up free at https://resend.com (100 emails/day, 3000/month
+     free, no card required) and grab a key from https://resend.com/api-keys
+   - `EMAIL_FROM` — the "From" address shown on the email. On a brand-new Resend
+     account, use the sandbox sender with zero setup: `Spider Hub <onboarding@resend.dev>`.
+     To send from your own domain, verify it first at https://resend.com/domains.
    - `PUBLIC_URL` — the URL this app will be live at (used to build the links inside emails)
 3. Start it:
    ```
@@ -58,7 +56,7 @@ spiderhub/
 1. Push this folder to your GitHub repo (`github.com/scottyxcourage-cmyk/...`).
 2. On pxxl.run, connect the repo for auto-deploy, same as Spider Web.
 3. In the pxxl.run dashboard, set environment variables matching `.env.example`
-   (`JWT_SECRET`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM`, `PUBLIC_URL`).
+   (`JWT_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `PUBLIC_URL`).
    Set `PUBLIC_URL` to the actual `https://yourapp.pxxl.run` URL pxxl.run gives you —
    verification/reset email links are built from this.
 4. pxxl.run should run `npm install` then `npm start` automatically. The SQLite file
@@ -69,7 +67,7 @@ spiderhub/
 ## How auth works now
 
 - Signup hashes the password with bcrypt and stores the user in SQLite, **unverified**.
-- A real email is sent (via your SMTP provider) with a verification link.
+- A real email is sent (via Resend) with a verification link.
 - Login is blocked until the email is verified ("Resend verification email" link appears
   on a failed login if that's why it failed).
 - Sessions are an httpOnly cookie holding a signed JWT — nothing sensitive is kept in
